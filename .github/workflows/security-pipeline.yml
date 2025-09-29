@@ -1,0 +1,76 @@
+name: Security Scanning Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scans:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install bandit semgrep gitleaks
+
+      - name: Run Bandit
+        run: |
+          bandit -r . -f html -o bandit-report.html
+        continue-on-error: true
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: bandit-report
+          path: bandit-report.html
+
+      - name: Run Semgrep
+        run: |
+          semgrep --config=auto --json > semgrep-report.json
+        continue-on-error: true
+      - name: Upload Semgrep Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: semgrep-report
+          path: semgrep-report.json
+
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect --source . --report-path=gitleaks-report.json --report-format=json
+        continue-on-error: true
+      - name: Upload Gitleaks Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+      - name: Start Flask App
+        run: |
+          pip install gunicorn
+          nohup gunicorn -b 0.0.0.0:5000 app:app & sleep 10
+      - name: Run ZAP Scan
+        uses: zaproxy/action-full-scan@v0.8.0
+        with:
+          target: "http://localhost:5000"
+          docker_name: "owasp/zap2docker-stable"
+          fail_action: false
+          artifact_name: zap-report
+          cmd_options: "-r zap-report.html"
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: zap-report
+          path: zap-report.html
+            
+
+         
