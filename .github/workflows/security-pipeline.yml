@@ -27,7 +27,15 @@ jobs:
           pip install bandit semgrep
 
           # Install gitleaks manually (latest version)
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar -xz -C /usr/local/bin gitleaks
+          GITLEAKS_URL=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
+            | grep "browser_download_url.*linux.*64" \
+            | grep -v ".sig" \
+            | cut -d '"' -f 4)
+
+          echo "Downloading Gitleaks from: $GITLEAKS_URL"
+          curl -sSL "$GITLEAKS_URL" -o gitleaks
+          chmod +x gitleaks
+          mv gitleaks /usr/local/bin/gitleaks
 
       - name: Run Bandit
         run: |
