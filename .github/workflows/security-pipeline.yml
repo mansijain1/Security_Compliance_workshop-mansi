@@ -7,20 +7,26 @@ on:
 jobs:
   security-scans:
     runs-on: ubuntu-latest
+
+    container:
+      image: python:3.10-slim 
+
     steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl git gcc build-essential
+
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.10
-
-      - name: Install Dependencies
+      - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install bandit semgrep gitleaks
+          pip install bandit semgrep
+
+          # Install gitleaks manually (latest version)
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar -xz -C /usr/local/bin gitleaks
 
       - name: Run Bandit
         run: |
@@ -46,11 +52,6 @@ jobs:
 
       - name: Run Gitleaks
         run: |
-          # Install gitleaks v8 if not present; the debian package may not be available
-          if ! command -v gitleaks >/dev/null 2>&1; then
-            curl -sSL https://github.com/zricethezav/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz | tar -xz -C /tmp
-            sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
-          fi
           gitleaks detect --source . --report-path=gitleaks-report.json --report-format=json || true
         continue-on-error: true
 
@@ -61,16 +62,10 @@ jobs:
           path: gitleaks-report.json
 
       - name: Start Flask App
-        env:
-          API_KEY: ""
         run: |
-          # Use gunicorn to serve app.py (or app_vulnerable.py) on 127.0.0.1:5000
-          # For initial scans you'd run the vulnerable app file:
-          # gunicorn -b 127.0.0.1:5000 app_vulnerable:app &
-          # After you fix issues commit app.py and change to app:app
+          pip install gunicorn
           nohup gunicorn -b 127.0.0.1:5000 app_vulnerable:app &
-
-          # Wait for service to be ready (poll)
+          # Wait until the app is up
           for i in {1..30}; do
             if curl -sSf http://127.0.0.1:5000/ >/dev/null; then
               echo "App is up"
@@ -80,18 +75,16 @@ jobs:
             sleep 1
           done
 
-      - name: Run ZAP Scan (DAST)
+      - name: Run ZAP Scan
         uses: zaproxy/action-full-scan@v0.8.0
         with:
           target: "http://127.0.0.1:5000"
           fail_action: false
           artifact_name: zap-report
           cmd_options: "-r zap-report.html"
-        continue-on-error: true
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: zap-report.html
-          
