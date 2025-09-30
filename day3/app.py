@@ -4,8 +4,7 @@ import ast
 
 app = Flask(__name__)
 
-# Use env var for secret (default removed)
-API_KEY = os.environ.get("API_KEY", None)
+app.config['SECRET_KEY'] = '0ff7d16e80eea2593e0c64b661df7cd123456789'
 
 @app.route("/")
 def home():
