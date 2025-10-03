@@ -126,9 +126,9 @@ jobs:
             -v ${{ github.workspace }}/day4:/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
             -t http://host.docker.internal:5000/ \
-            -J zap-report.json \
-            -w zap-report.md \
-            -r zap-report.html || true
+            -J /zap/wrk/zap-report.json \
+            -w /zap/wrk/zap-report.md \
+            -r /zap/wrk/zap-report.html || true
 
       - name: Upload ZAP DAST Reports
         uses: actions/upload-artifact@v4
